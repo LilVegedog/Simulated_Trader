@@ -48,3 +48,24 @@ def test_reasonable_symbol_count():
 def test_tickers_are_upper_case_with_no_whitespace():
     for ticker in symbols.SUPPORTED_TICKERS:
         assert ticker == ticker.strip().upper()
+
+
+def test_every_ticker_has_a_positive_drift_and_volatility():
+    for ticker in symbols.SUPPORTED_TICKERS:
+        assert ticker in symbols.TICKER_DRIFT
+        assert ticker in symbols.TICKER_VOLATILITY
+        assert symbols.TICKER_VOLATILITY[ticker] > 0
+
+
+def test_no_extra_tickers_in_drift_and_volatility_maps():
+    # Every key in these maps should be a real, supported ticker -- no
+    # stray/typo'd entries that never get used.
+    assert set(symbols.TICKER_DRIFT) == symbols.SUPPORTED_TICKERS
+    assert set(symbols.TICKER_VOLATILITY) == symbols.SUPPORTED_TICKERS
+
+
+def test_volatile_tickers_have_higher_volatility_than_defensive_ones():
+    # Sanity check on relative risk profile, per PLAN.md section 6 /
+    # MARKET_SIMULATOR.md section 2 ("AAPL is calmer than TSLA").
+    assert symbols.TICKER_VOLATILITY["TSLA"] > symbols.TICKER_VOLATILITY["JPM"]
+    assert symbols.TICKER_VOLATILITY["NVDA"] > symbols.TICKER_VOLATILITY["KO"]
