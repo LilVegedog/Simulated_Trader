@@ -19,12 +19,17 @@ from dataclasses import dataclass
 from typing import AsyncIterator, Callable, Iterable
 
 from .base import MarketDataProvider, PricePoint, utc_now_iso
-from .symbols import SECTOR_TICKERS, SEED_PRICES
+from .symbols import SECTOR_TICKERS, SEED_PRICES, TICKER_DRIFT, TICKER_VOLATILITY
 
-# Approximate seconds of market time in a trading year (252 days * 6.5h
-# sessions). Used only to scale the annualized drift/volatility down to a
-# per-tick step -- the simulator does not track wall-clock trading hours.
-SECONDS_PER_TRADING_YEAR = 252 * 6.5 * 3600
+# Simulation-time step fed into the GBM formula for each tick, deliberately
+# decoupled from wall-clock time and from `update_interval` (see
+# MARKET_SIMULATOR.md section 1: "Why Not 'Real' Annualized GBM"). Plugging
+# the literal wall-clock fraction of a trading year into GBM (~8.5e-8 for a
+# 500ms tick) produces moves of a few thousandths of a percent -- invisible
+# on screen. This display-tuned constant is chosen so that, combined with
+# the realistic per-ticker volatilities in `symbols.py` (0.14-0.55), a tick
+# produces a visible ~0.1-0.3% move on a typical ticker.
+TICK_DT = 1 / 25_000
 
 MIN_PRICE = 0.01
 
@@ -32,10 +37,16 @@ MIN_PRICE = 0.01
 @dataclass
 class SimulatorConfig:
     update_interval: float = 0.5
+    tick_dt: float = TICK_DT
+    # Fallback drift/volatility for any ticker not present in `symbols.py`'s
+    # per-ticker TICKER_DRIFT/TICKER_VOLATILITY maps (e.g. tests that supply
+    # a synthetic seed_prices/sector_tickers set of their own).
     annual_drift: float = 0.08
     annual_volatility: float = 0.35
     sector_correlation: float = 0.6
-    event_probability: float = 0.01
+    # ~once every ~2000 ticks per ticker (~15-20 min at 500ms), per
+    # MARKET_SIMULATOR.md section 4.
+    event_probability: float = 0.0005
     event_min_pct: float = 0.02
     event_max_pct: float = 0.05
     seed: int | None = None
@@ -47,11 +58,19 @@ class SimulatorProvider(MarketDataProvider):
         config: SimulatorConfig | None = None,
         seed_prices: dict[str, float] | None = None,
         sector_tickers: dict[str, tuple[str, ...]] | None = None,
+        ticker_drift: dict[str, float] | None = None,
+        ticker_volatility: dict[str, float] | None = None,
     ) -> None:
         self._config = config or SimulatorConfig()
         self._seed_prices = dict(seed_prices if seed_prices is not None else SEED_PRICES)
         self._sector_tickers = (
             sector_tickers if sector_tickers is not None else SECTOR_TICKERS
+        )
+        self._ticker_drift = dict(
+            ticker_drift if ticker_drift is not None else TICKER_DRIFT
+        )
+        self._ticker_volatility = dict(
+            ticker_volatility if ticker_volatility is not None else TICKER_VOLATILITY
         )
         self._ticker_sector = {
             ticker: sector
@@ -60,6 +79,12 @@ class SimulatorProvider(MarketDataProvider):
         }
         self._rng = random.Random(self._config.seed)
         self._prices: dict[str, float] = dict(self._seed_prices)
+
+    def _drift_for(self, ticker: str) -> float:
+        return self._ticker_drift.get(ticker, self._config.annual_drift)
+
+    def _volatility_for(self, ticker: str) -> float:
+        return self._ticker_volatility.get(ticker, self._config.annual_volatility)
 
     @property
     def supported_tickers(self) -> frozenset[str]:
@@ -73,9 +98,7 @@ class SimulatorProvider(MarketDataProvider):
         that are temporarily off the watchlist, then callers filter down
         to what they actually need.
         """
-        dt = self._config.update_interval / SECONDS_PER_TRADING_YEAR
-        drift = self._config.annual_drift
-        volatility = self._config.annual_volatility
+        dt = self._config.tick_dt
         correlation = self._config.sector_correlation
 
         sector_shocks = {
@@ -85,6 +108,8 @@ class SimulatorProvider(MarketDataProvider):
         timestamp = utc_now_iso()
         results: dict[str, PricePoint] = {}
         for ticker, previous_price in self._prices.items():
+            drift = self._drift_for(ticker)
+            volatility = self._volatility_for(ticker)
             sector = self._ticker_sector.get(ticker)
             idiosyncratic = self._rng.gauss(0, 1)
             if sector is not None:

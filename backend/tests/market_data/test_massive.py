@@ -52,13 +52,23 @@ async def test_fetch_parses_last_trade_price(httpx_mock):
     await provider.aclose()
 
 
-async def test_fetch_request_includes_sorted_tickers_and_api_key(httpx_mock):
+async def test_fetch_request_includes_sorted_tickers_and_auth_header(httpx_mock):
     httpx_mock.add_response(json={"tickers": []})
     provider = make_provider()
     await provider.fetch(["msft", "aapl"])
     request = httpx_mock.get_requests()[0]
     assert request.url.params["tickers"] == "AAPL,MSFT"
-    assert request.url.params["apikey"] == "test-key"
+    # The API key travels in the Authorization header, not the URL, so it
+    # can't leak into request logs (planning/MASSIVE_API.md section 2).
+    assert "apikey" not in request.url.params
+    assert request.headers["authorization"] == "Bearer test-key"
+    await provider.aclose()
+
+
+async def test_fetch_uses_default_massive_base_url():
+    provider = make_provider()
+    client = await provider._get_client()  # noqa: SLF001
+    assert str(client.base_url) == "https://api.massive.com"
     await provider.aclose()
 
 
@@ -83,6 +93,33 @@ async def test_fetch_falls_back_to_day_close_when_no_last_trade(httpx_mock):
     provider = make_provider()
     points = await provider.fetch(["AAPL"])
     assert points[0].price == 188.25
+    await provider.aclose()
+
+
+async def test_fetch_falls_back_to_prev_day_close_when_day_close_is_zero(httpx_mock):
+    # day.c is 0 before the current session's first trade (planning/
+    # MARKET_INTERFACE.md section 6) -- it must not be treated as a real
+    # $0 price.
+    httpx_mock.add_response(
+        json={"tickers": [{"ticker": "AAPL", "day": {"c": 0}, "prevDay": {"c": 187.5}}]}
+    )
+    provider = make_provider()
+    points = await provider.fetch(["AAPL"])
+    assert points[0].price == 187.5
+    await provider.aclose()
+
+
+async def test_fetch_treats_zero_last_trade_as_missing_too(httpx_mock):
+    httpx_mock.add_response(
+        json={
+            "tickers": [
+                {"ticker": "AAPL", "lastTrade": {"p": 0}, "day": {"c": 0}, "prevDay": {"c": 187.5}}
+            ]
+        }
+    )
+    provider = make_provider()
+    points = await provider.fetch(["AAPL"])
+    assert points[0].price == 187.5
     await provider.aclose()
 
 

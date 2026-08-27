@@ -11,9 +11,16 @@ section 6).
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
+from collections import defaultdict, deque
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import AsyncIterator, Callable, Iterable
+
+# Bounds how many historical points PriceCache keeps per ticker. At the
+# simulator's ~500ms tick cadence this is ~24 minutes; GET /api/prices/history
+# (PLAN.md section 6) reads from this buffer rather than fetching fresh data
+# from the provider.
+DEFAULT_HISTORY_MAXLEN = 2_880
 
 
 def utc_now_iso() -> str:
@@ -90,13 +97,23 @@ class PriceCache:
     the SSE stream and REST endpoints read from it. This indirection is
     what lets multiple SSE subscribers share one upstream poll/simulation
     loop (see PLAN.md section 6, "Shared Price Cache").
+
+    Every write is also appended to a bounded per-ticker history buffer,
+    which is what backs `GET /api/prices/history` (PLAN.md section 6) --
+    that endpoint serves data this cache has already recorded rather than
+    querying the provider again.
     """
 
-    def __init__(self) -> None:
+    def __init__(self, history_maxlen: int = DEFAULT_HISTORY_MAXLEN) -> None:
         self._prices: dict[str, PricePoint] = {}
+        self._history: dict[str, deque[PricePoint]] = defaultdict(
+            lambda: deque(maxlen=history_maxlen)
+        )
 
     def update(self, point: PricePoint) -> None:
-        self._prices[point.ticker.strip().upper()] = point
+        ticker = point.ticker.strip().upper()
+        self._prices[ticker] = point
+        self._history[ticker].append(point)
 
     def update_many(self, points: Iterable[PricePoint]) -> None:
         for point in points:
@@ -107,6 +124,11 @@ class PriceCache:
 
     def all(self) -> dict[str, PricePoint]:
         return dict(self._prices)
+
+    def history(self, ticker: str) -> list[PricePoint]:
+        """All recorded points for `ticker`, oldest first, bounded by
+        `history_maxlen`."""
+        return list(self._history.get(ticker.strip().upper(), ()))
 
     def __len__(self) -> int:
         return len(self._prices)

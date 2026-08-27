@@ -86,3 +86,37 @@ def test_price_cache_all_returns_a_copy():
     snapshot = cache.all()
     snapshot["MSFT"] = PricePoint(ticker="MSFT", price=1, previous_price=1, timestamp="t")
     assert "MSFT" not in cache
+
+
+def test_price_cache_history_is_empty_for_unknown_ticker():
+    cache = PriceCache()
+    assert cache.history("AAPL") == []
+
+
+def test_price_cache_history_records_every_update_oldest_first():
+    cache = PriceCache()
+    points = [
+        PricePoint(ticker="AAPL", price=100, previous_price=99, timestamp="t1"),
+        PricePoint(ticker="AAPL", price=101, previous_price=100, timestamp="t2"),
+        PricePoint(ticker="AAPL", price=102, previous_price=101, timestamp="t3"),
+    ]
+    for point in points:
+        cache.update(point)
+    assert cache.history("AAPL") == points
+
+
+def test_price_cache_history_is_case_insensitive_and_per_ticker():
+    cache = PriceCache()
+    cache.update(PricePoint(ticker="aapl", price=100, previous_price=99, timestamp="t"))
+    cache.update(PricePoint(ticker="MSFT", price=400, previous_price=399, timestamp="t"))
+    assert [p.ticker for p in cache.history("AAPL")] == ["aapl"]
+    assert [p.ticker for p in cache.history(" msft ")] == ["MSFT"]
+
+
+def test_price_cache_history_is_bounded_by_history_maxlen():
+    cache = PriceCache(history_maxlen=3)
+    for i in range(5):
+        cache.update(PricePoint(ticker="AAPL", price=100 + i, previous_price=100, timestamp=f"t{i}"))
+    history = cache.history("AAPL")
+    assert len(history) == 3
+    assert [p.price for p in history] == [102, 103, 104]

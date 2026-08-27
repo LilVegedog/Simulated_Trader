@@ -1,4 +1,5 @@
 import math
+import statistics
 
 import pytest
 
@@ -10,7 +11,7 @@ SECTOR_TICKERS = {"sector1": ("AAA", "BBB"), "sector2": ("CCC",)}
 
 
 def make_simulator(**overrides) -> SimulatorProvider:
-    config = SimulatorConfig(seed=42, event_probability=0.0, **overrides)
+    config = SimulatorConfig(**{"seed": 42, "event_probability": 0.0, **overrides})
     return SimulatorProvider(
         config=config, seed_prices=SEED_PRICES, sector_tickers=SECTOR_TICKERS
     )
@@ -125,6 +126,37 @@ def test_event_probability_produces_much_larger_average_moves():
     calm_avg = sum(calm_moves) / len(calm_moves)
     eventful_avg = sum(eventful_moves) / len(eventful_moves)
     assert eventful_avg > calm_avg * 5
+
+
+def test_default_ticks_produce_visible_but_not_violent_moves():
+    # MARKET_SIMULATOR.md section 1: literal wall-clock GBM produces
+    # invisible (~0.0001%) moves; the display-tuned tick_dt should land
+    # roughly in the 0.1-0.3% per tick range it describes, using the real
+    # ticker universe's per-ticker volatilities (0.14-0.55).
+    sim = SimulatorProvider(config=SimulatorConfig(seed=7, event_probability=0.0))
+    moves = []
+    prev = sim.tick()
+    for _ in range(300):
+        cur = sim.tick()
+        for ticker, point in cur.items():
+            moves.append(abs(point.price / prev[ticker].price - 1))
+        prev = cur
+    mean_move = statistics.mean(moves)
+    assert 0.0005 < mean_move < 0.01, f"mean tick move {mean_move:.5%} is out of range"
+
+
+def test_higher_volatility_tickers_move_more_than_lower_volatility_ones():
+    # Real per-ticker volatility (symbols.TICKER_VOLATILITY) should give
+    # TSLA visibly choppier behavior than JPM, not identical statistics.
+    sim = SimulatorProvider(config=SimulatorConfig(seed=11, event_probability=0.0))
+    tsla_moves, jpm_moves = [], []
+    prev = sim.tick()
+    for _ in range(500):
+        cur = sim.tick()
+        tsla_moves.append(abs(math.log(cur["TSLA"].price / prev["TSLA"].price)))
+        jpm_moves.append(abs(math.log(cur["JPM"].price / prev["JPM"].price)))
+        prev = cur
+    assert statistics.mean(tsla_moves) > statistics.mean(jpm_moves) * 1.5
 
 
 async def test_stream_filters_batches_to_requested_tickers():

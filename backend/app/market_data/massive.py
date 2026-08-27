@@ -25,7 +25,7 @@ from .symbols import SUPPORTED_TICKERS
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_BASE_URL = "https://api.massive.io"
+DEFAULT_BASE_URL = "https://api.massive.com"
 SNAPSHOT_PATH = "/v2/snapshot/locale/us/markets/stocks/tickers"
 # Free tier allows 5 calls/min; polling every 15s stays comfortably under that.
 DEFAULT_POLL_INTERVAL = 15.0
@@ -82,7 +82,8 @@ class MassiveProvider(MarketDataProvider):
         client = await self._get_client()
         response = await client.get(
             SNAPSHOT_PATH,
-            params={"tickers": ",".join(symbols), "apikey": self._api_key},
+            params={"tickers": ",".join(symbols)},
+            headers={"Authorization": f"Bearer {self._api_key}"},
         )
         response.raise_for_status()
         return self._parse_snapshot(response.json())
@@ -98,12 +99,15 @@ class MassiveProvider(MarketDataProvider):
 
             last_trade = entry.get("lastTrade") or {}
             day = entry.get("day") or {}
-            price = last_trade.get("p")
-            if price is None:
-                price = day.get("c")
-            if price is None:
+            prev_day = entry.get("prevDay") or {}
+            # `day.c` is 0 before the current session's first trade, so treat
+            # it (and lastTrade.p) as missing rather than a real $0 price and
+            # fall back to yesterday's close.
+            price = last_trade.get("p") or day.get("c") or prev_day.get("c")
+            if not price:
                 logger.warning(
-                    "Massive snapshot for %s had no lastTrade.p or day.c price, skipping",
+                    "Massive snapshot for %s had no usable lastTrade.p, day.c, "
+                    "or prevDay.c price, skipping",
                     ticker,
                 )
                 continue
