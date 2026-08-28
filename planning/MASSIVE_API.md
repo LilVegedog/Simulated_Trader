@@ -99,7 +99,7 @@ async def fetch_snapshot(client: httpx.AsyncClient, tickers: list[str], api_key:
 GET /v3/snapshot?ticker.any_of=AAPL,GOOGL,MSFT
 ```
 
-Accepts up to 250 tickers via `ticker.any_of`, spans stocks/options/forex/crypto in one schema, and reports per-ticker errors inline (e.g. `{"ticker": "BADSYM", "error": "NOT_FOUND"}`) rather than failing the whole request. This is a reasonable alternative to §4.1; either works for our purposes. We standardize on §4.1 (`/v2/snapshot/.../tickers`) in `MARKET_INTERFACE.md` because its response shape (`day`/`prevDay` OHLC blocks) maps more directly onto the `PriceQuote` fields we need (current price, previous price, change).
+Accepts up to 250 tickers via `ticker.any_of`, spans stocks/options/forex/crypto in one schema, and reports per-ticker errors inline (e.g. `{"ticker": "BADSYM", "error": "NOT_FOUND"}`) rather than failing the whole request. This is a reasonable alternative to §4.1; either works for our purposes. We standardize on §4.1 (`/v2/snapshot/.../tickers`) — see `planning/MARKET_DATA.md` §6 — because its response shape (`day`/`prevDay` OHLC blocks) maps more directly onto the `PricePoint` fields we need (current price, previous price, change).
 
 ### 4.3 Previous Day Bar — cheap end-of-day close
 
@@ -155,7 +155,7 @@ GET /v2/aggs/ticker/AAPL/range/5/minute/2026-08-25/2026-08-26
 }
 ```
 
-**This project does not use this endpoint for the `/api/prices/history` chart backing.** Free-tier rate limits make it impractical to backfill fine-grained intraday history for every watched ticker on demand, and `planning/PLAN.md` §6 specifies that history is served from price data *the backend itself has recorded*, not fetched fresh from the provider. This endpoint is documented here for completeness (e.g. a future "load 6 months of daily history" feature) but is not part of the MVP integration in `MARKET_INTERFACE.md`.
+**This project does not use this endpoint for the `/api/prices/history` chart backing.** Free-tier rate limits make it impractical to backfill fine-grained intraday history for every watched ticker on demand, and `planning/PLAN.md` §6 specifies that history is served from price data *the backend itself has recorded*, not fetched fresh from the provider. This endpoint is documented here for completeness (e.g. a future "load 6 months of daily history" feature) but is not part of the MVP integration described in `planning/MARKET_DATA.md`.
 
 ### 4.6 Last Trade / Last Quote — single-ticker, low-latency
 
@@ -186,9 +186,9 @@ Common cases to handle in the client wrapper:
 
 | HTTP status | Meaning | Handling |
 |---|---|---|
-| `200` with `status: "NOT_FOUND"` (unified snapshot, per-ticker) | Ticker not recognized | Treat as `unknown_ticker` — see `MARKET_INTERFACE.md` §4 |
+| `200` with `status: "NOT_FOUND"` (unified snapshot, per-ticker) | Ticker not recognized | Treat as `unknown_ticker` — see `planning/MARKET_DATA.md` §4 |
 | `403` | Bad/missing API key | Fatal config error — surface clearly at startup, don't retry per-request |
-| `429` | Rate limit exceeded | Back off and retry (see `MARKET_INTERFACE.md` §5) |
+| `429` | Rate limit exceeded | Back off and retry (see `planning/MARKET_DATA.md` §6) |
 | `5xx` | Upstream outage | Back off and retry; keep serving last-known cached prices in the meantime |
 
 ## 6. Official Python Client (`massive` package)
@@ -210,7 +210,7 @@ trade = client.get_last_trade(ticker="AAPL")
 quote = client.get_last_quote(ticker="AAPL")
 ```
 
-The client also ships a `WebSocketClient` for push-based streaming (`subscriptions=["T.AAPL", "T.META"]`). This project deliberately does **not** use Massive's WebSocket API — `planning/PLAN.md` §3 chose REST polling for market data ingestion specifically because it's simpler and works uniformly across free and paid tiers (WebSocket streaming isn't available on the free plan). We use plain `httpx` for REST calls rather than the official client so the same async HTTP pattern is used throughout the backend and to keep the dependency footprint small — see `MARKET_INTERFACE.md` §3 for the concrete implementation.
+The client also ships a `WebSocketClient` for push-based streaming (`subscriptions=["T.AAPL", "T.META"]`). This project deliberately does **not** use Massive's WebSocket API — `planning/PLAN.md` §3 chose REST polling for market data ingestion specifically because it's simpler and works uniformly across free and paid tiers (WebSocket streaming isn't available on the free plan). We use plain `httpx` for REST calls rather than the official client so the same async HTTP pattern is used throughout the backend and to keep the dependency footprint small — see `planning/MARKET_DATA.md` §6 for the concrete implementation.
 
 ## 7. Sources
 

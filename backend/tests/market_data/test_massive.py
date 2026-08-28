@@ -98,7 +98,7 @@ async def test_fetch_falls_back_to_day_close_when_no_last_trade(httpx_mock):
 
 async def test_fetch_falls_back_to_prev_day_close_when_day_close_is_zero(httpx_mock):
     # day.c is 0 before the current session's first trade (planning/
-    # MARKET_INTERFACE.md section 6) -- it must not be treated as a real
+    # MARKET_DATA.md section 6) -- it must not be treated as a real
     # $0 price.
     httpx_mock.add_response(
         json={"tickers": [{"ticker": "AAPL", "day": {"c": 0}, "prevDay": {"c": 187.5}}]}
