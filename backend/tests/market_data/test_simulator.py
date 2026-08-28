@@ -129,7 +129,7 @@ def test_event_probability_produces_much_larger_average_moves():
 
 
 def test_default_ticks_produce_visible_but_not_violent_moves():
-    # MARKET_SIMULATOR.md section 1: literal wall-clock GBM produces
+    # planning/MARKET_DATA.md section 5.1: literal wall-clock GBM produces
     # invisible (~0.0001%) moves; the display-tuned tick_dt should land
     # roughly in the 0.1-0.3% per tick range it describes, using the real
     # ticker universe's per-ticker volatilities (0.14-0.55).

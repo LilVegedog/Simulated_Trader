@@ -136,8 +136,8 @@ SEED_PRICES: dict[str, float] = {
 }
 
 # Annualized drift (expected return) and volatility per ticker, used as
-# *relative* magnitudes by the simulator's GBM step (see MARKET_SIMULATOR.md
-# section 2) so each name has a distinct, realistic risk profile -- e.g.
+# *relative* magnitudes by the simulator's GBM step (see planning/MARKET_DATA.md
+# section 4) so each name has a distinct, realistic risk profile -- e.g.
 # TSLA/NVDA visibly choppier than JPM/V, tech generally more volatile than
 # consumer staples. Every ticker in SEED_PRICES must have an entry in both.
 TICKER_DRIFT: dict[str, float] = {

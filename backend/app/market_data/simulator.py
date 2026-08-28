@@ -23,7 +23,7 @@ from .symbols import SECTOR_TICKERS, SEED_PRICES, TICKER_DRIFT, TICKER_VOLATILIT
 
 # Simulation-time step fed into the GBM formula for each tick, deliberately
 # decoupled from wall-clock time and from `update_interval` (see
-# MARKET_SIMULATOR.md section 1: "Why Not 'Real' Annualized GBM"). Plugging
+# planning/MARKET_DATA.md section 5.1: "Why not literal annualized GBM"). Plugging
 # the literal wall-clock fraction of a trading year into GBM (~8.5e-8 for a
 # 500ms tick) produces moves of a few thousandths of a percent -- invisible
 # on screen. This display-tuned constant is chosen so that, combined with
@@ -45,7 +45,7 @@ class SimulatorConfig:
     annual_volatility: float = 0.35
     sector_correlation: float = 0.6
     # ~once every ~2000 ticks per ticker (~15-20 min at 500ms), per
-    # MARKET_SIMULATOR.md section 4.
+    # planning/MARKET_DATA.md section 5.2.
     event_probability: float = 0.0005
     event_min_pct: float = 0.02
     event_max_pct: float = 0.05

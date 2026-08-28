@@ -66,6 +66,6 @@ def test_no_extra_tickers_in_drift_and_volatility_maps():
 
 def test_volatile_tickers_have_higher_volatility_than_defensive_ones():
     # Sanity check on relative risk profile, per PLAN.md section 6 /
-    # MARKET_SIMULATOR.md section 2 ("AAPL is calmer than TSLA").
+    # planning/MARKET_DATA.md section 4 ("AAPL is calmer than TSLA").
     assert symbols.TICKER_VOLATILITY["TSLA"] > symbols.TICKER_VOLATILITY["JPM"]
     assert symbols.TICKER_VOLATILITY["NVDA"] > symbols.TICKER_VOLATILITY["KO"]
