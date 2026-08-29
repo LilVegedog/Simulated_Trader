@@ -27,7 +27,7 @@ cp .env.example .env   # add your OPENROUTER_API_KEY
 ./scripts/start_mac.sh # or scripts/start_windows.ps1
 ```
 
-Then open `http://localhost:8000`.
+Then open `http://localhost:8000`. To stop, run `./scripts/stop_mac.sh` (or `scripts/stop_windows.ps1`) — your data is preserved in a Docker volume and picked back up on the next start.
 
 ## Documentation
 

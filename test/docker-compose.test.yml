@@ -1,0 +1,35 @@
+services:
+  app:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    environment:
+      - OPENROUTER_API_KEY=unused-in-mock-mode
+      - LLM_MOCK=true
+    # "app" is an HSTS-preloaded gTLD -- Chromium force-upgrades http://app:8000
+    # to https and fails the handshake. Give the service a non-public hostname
+    # alias for Playwright to hit instead (see BASE_URL below).
+    networks:
+      default:
+        aliases:
+          - finally-app
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+      start_period: 10s
+
+  playwright:
+    # Pinned to match test/package.json's @playwright/test version -- the
+    # image ships browser binaries matching its own tag. Keep both in lockstep.
+    image: mcr.microsoft.com/playwright:v1.62.1-jammy
+    working_dir: /tests
+    volumes:
+      - ..:/tests
+    environment:
+      - BASE_URL=http://finally-app:8000
+    depends_on:
+      app:
+        condition: service_healthy
+    command: sh -c "cd /tests/test && npx playwright test"

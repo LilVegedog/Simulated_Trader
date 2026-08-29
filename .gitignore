@@ -1,3 +1,7 @@
+# FinAlly runtime database (db/.gitkeep keeps the directory tracked)
+db/*.db
+db/*.db-journal
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
@@ -14,7 +18,7 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
+/lib/
 lib64/
 parts/
 sdist/
