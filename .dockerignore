@@ -1,0 +1,33 @@
+# Version control
+.git
+.github
+
+# Python
+**/__pycache__
+**/*.py[codz]
+**/.venv
+**/.venv-windows
+**/.pytest_cache
+**/.ruff_cache
+
+# Node / frontend build artifacts (rebuilt in the image)
+**/node_modules
+frontend/.next
+frontend/out
+
+# Dev-only mock backend, not used by the production build
+frontend/mock
+
+# Secrets and runtime data
+.env
+db/*.db
+
+# Docs and misc
+planning
+*.md
+LICENSE
+
+# IDE / OS
+.claude
+.vscode
+.idea
